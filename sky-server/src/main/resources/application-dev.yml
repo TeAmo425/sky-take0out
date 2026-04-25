@@ -6,3 +6,9 @@ sky:
     database: sky_take_out
     username: root
     password: lt123
+
+  alioss:
+    endpoint: https://skytakeout.fra1.digitaloceanspaces.com  # 你的region endpoint
+    access-key-id: DO00ZGX49GWEHGMBW7TV
+    access-key-secret: a8TyB2WZxnOJS6SC95VgVHtcyj1YL10relKv2we90Ys
+    bucket-name: skytakeout

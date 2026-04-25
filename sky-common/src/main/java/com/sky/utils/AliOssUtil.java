@@ -1,14 +1,16 @@
 package com.sky.utils;
 
-import com.aliyun.oss.ClientException;
-import com.aliyun.oss.OSS;
-import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.OSSException;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import java.io.ByteArrayInputStream;
-
 @Data
 @AllArgsConstructor
 @Slf4j
@@ -19,50 +21,33 @@ public class AliOssUtil {
     private String accessKeySecret;
     private String bucketName;
 
-    /**
-     * 文件上传
-     *
-     * @param bytes
-     * @param objectName
-     * @return
-     */
     public String upload(byte[] bytes, String objectName) {
+        // 提取 region（如 ams3）
+        String region = endpoint.replace("https://", "").split("\\.")[0];
 
-        // 创建OSSClient实例。
-        OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+        BasicAWSCredentials credentials =
+                new BasicAWSCredentials(accessKeyId, accessKeySecret);
 
-        try {
-            // 创建PutObject请求。
-            ossClient.putObject(bucketName, objectName, new ByteArrayInputStream(bytes));
-        } catch (OSSException oe) {
-            System.out.println("Caught an OSSException, which means your request made it to OSS, "
-                    + "but was rejected with an error response for some reason.");
-            System.out.println("Error Message:" + oe.getErrorMessage());
-            System.out.println("Error Code:" + oe.getErrorCode());
-            System.out.println("Request ID:" + oe.getRequestId());
-            System.out.println("Host ID:" + oe.getHostId());
-        } catch (ClientException ce) {
-            System.out.println("Caught an ClientException, which means the client encountered "
-                    + "a serious internal problem while trying to communicate with OSS, "
-                    + "such as not being able to access the network.");
-            System.out.println("Error Message:" + ce.getMessage());
-        } finally {
-            if (ossClient != null) {
-                ossClient.shutdown();
-            }
-        }
+        AmazonS3 s3 = AmazonS3ClientBuilder.standard()
+                .withEndpointConfiguration(
+                        new AwsClientBuilder.EndpointConfiguration(endpoint, region))
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .withPathStyleAccessEnabled(true)
+                .build();
 
-        //文件访问路径规则 https://BucketName.Endpoint/ObjectName
-        StringBuilder stringBuilder = new StringBuilder("https://");
-        stringBuilder
-                .append(bucketName)
-                .append(".")
-                .append(endpoint)
-                .append("/")
-                .append(objectName);
+        // 上传文件
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(bytes.length);
+        s3.putObject(bucketName, objectName,
+                new ByteArrayInputStream(bytes), metadata);
 
-        log.info("文件上传到:{}", stringBuilder.toString());
+        // 设置文件公开访问
+        s3.setObjectAcl(bucketName, objectName, CannedAccessControlList.PublicRead);
 
-        return stringBuilder.toString();
+        // 返回文件访问地址
+        String fileUrl = endpoint.replace("://", "://" + bucketName + ".")
+                + "/" + objectName;
+        log.info("文件上传成功，访问地址：{}", fileUrl);
+        return fileUrl;
     }
 }
